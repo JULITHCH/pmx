@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// sshError trägt Exit-Code und stderr eines fehlgeschlagenen ssh-Aufrufs.
+// sshError carries the exit code and stderr of a failed ssh call.
 type sshError struct {
 	code   int
 	stderr string
@@ -26,9 +26,9 @@ func (e *sshError) Error() string {
 	}
 	switch {
 	case strings.Contains(msg, "Connection refused"):
-		return msg + " (läuft sshd?)"
+		return msg + " (is sshd running?)"
 	case strings.Contains(msg, "a password is required"):
-		return msg + " (sudo ohne Passwort nötig, siehe README)"
+		return msg + " (passwordless sudo required, see README)"
 	}
 	return msg
 }
@@ -58,7 +58,7 @@ func lastLine(s string) string {
 	return ""
 }
 
-// shq quotet einen String für POSIX-Shells.
+// shq quotes a string for POSIX shells.
 func shq(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
@@ -73,7 +73,7 @@ func shellJoin(args []string) string {
 
 func controlDir() string {
 	base, err := os.UserCacheDir()
-	if err != nil || len(base) > 60 { // Unix-Socket-Pfade sind auf ~104 Zeichen begrenzt
+	if err != nil || len(base) > 60 { // Unix socket paths are limited to ~104 chars
 		base = os.TempDir()
 	}
 	d := filepath.Join(base, "pmx")
@@ -85,9 +85,9 @@ func (s *Server) Target() string { return s.User + "@" + s.Host }
 
 func (s *Server) jump() bool { return s.Jump != nil && *s.Jump }
 
-// baseArgs liefert die ssh-Optionen für den Proxmox-Host. Über ControlMaster
-// wird eine Verbindung wiederverwendet – dadurch sind Folgeaufrufe sehr schnell.
-// escape=true verdoppelt '%' für die Verwendung innerhalb von ProxyCommand.
+// baseArgs returns the ssh options for the Proxmox host. ControlMaster reuses
+// one connection, which makes follow-up calls very fast.
+// escape=true doubles '%' for use inside ProxyCommand.
 func (s *Server) baseArgs(escape bool) []string {
 	cp := filepath.Join(controlDir(), "%C")
 	if escape {
@@ -120,8 +120,8 @@ func (s *Server) sudo(interactive bool) string {
 	return "sudo -n "
 }
 
-// runCapture führt cmd aus und sammelt stdout/stderr. WaitDelay verhindert,
-// dass ein im Hintergrund weiterlaufender ControlMaster die Pipes blockiert.
+// runCapture runs cmd and collects stdout/stderr. WaitDelay keeps a backgrounded
+// ControlMaster from holding the pipes open.
 func runCapture(cmd *exec.Cmd) (string, error) {
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
@@ -138,7 +138,7 @@ func runCapture(cmd *exec.Cmd) (string, error) {
 	return out.String(), nil
 }
 
-// Run führt ein Shell-Skript nicht-interaktiv auf dem Proxmox-Host aus.
+// Run executes a shell script non-interactively on the Proxmox host.
 func (s *Server) Run(script string) (string, error) {
 	args := append(s.baseArgs(false), "-o", "BatchMode=yes", s.Target(), s.sudo(false)+"sh -s")
 	cmd := exec.Command("ssh", args...)
@@ -146,13 +146,21 @@ func (s *Server) Run(script string) (string, error) {
 	return runCapture(cmd)
 }
 
-// EnterCmd: interaktives `pct enter` auf dem Host.
+// Exec runs a command in a container via `pct exec` without a TTY. stdin,
+// stdout and stderr are passed through, and the exit code is returned.
+func (s *Server) Exec(id int, command string) int {
+	remote := fmt.Sprintf("%spct exec %d -- sh -c %s", s.sudo(false), id, shq(command))
+	args := append(s.baseArgs(false), "-o", "BatchMode=yes", s.Target(), remote)
+	return runInteractive(exec.Command("ssh", args...))
+}
+
+// EnterCmd: interactive `pct enter` on the host.
 func (s *Server) EnterCmd(id int) *exec.Cmd {
 	args := append(s.baseArgs(false), "-t", s.Target(), fmt.Sprintf("%spct enter %d", s.sudo(true), id))
 	return exec.Command("ssh", args...)
 }
 
-// HostShellCmd: normale SSH-Session auf dem Proxmox-Host.
+// HostShellCmd: plain SSH session on the Proxmox host.
 func (s *Server) HostShellCmd() *exec.Cmd {
 	return exec.Command("ssh", append(s.baseArgs(false), s.Target())...)
 }
@@ -170,12 +178,12 @@ func (s *Server) containerSSHArgs(ip string) []string {
 	return append(a, s.ContainerUser+"@"+ip)
 }
 
-// ContainerShellCmd: SSH direkt in den Container (optional über den Host getunnelt).
+// ContainerShellCmd: SSH directly into the container (optionally tunneled through the host).
 func (s *Server) ContainerShellCmd(ip string) *exec.Cmd {
 	return exec.Command("ssh", s.containerSSHArgs(ip)...)
 }
 
-// CheckContainerSSH prüft, ob ein Login per Key ohne Passwort möglich ist.
+// CheckContainerSSH checks whether a key-based login without password works.
 func (s *Server) CheckContainerSSH(ip string) error {
 	args := append([]string{"-o", "BatchMode=yes"}, s.containerSSHArgs(ip)...)
 	_, err := runCapture(exec.Command("ssh", append(args, "true")...))
@@ -187,7 +195,7 @@ func (s *Server) CheckHost() error {
 	return err
 }
 
-// PubKeyPath liefert den lokalen Public Key und ob er existiert.
+// PubKeyPath returns the local public key path and whether it exists.
 func (s *Server) PubKeyPath() (string, bool) {
 	if s.IdentityFile != "" {
 		p := s.IdentityFile + ".pub"
@@ -211,16 +219,16 @@ func (s *Server) CopyIDCmd(pub string) *exec.Cmd {
 		"-p", strconv.Itoa(s.Port), s.Target())
 }
 
-// PushContainerKey hinterlegt den Public Key per `pct exec` im Container –
-// ganz ohne Container-Passwort.
+// PushContainerKey installs the public key in the container via `pct exec` –
+// no container password needed.
 func (s *Server) PushContainerKey(id int, user, pubkey string) error {
 	inner := `u="$1"; k="$2"
 h=$(awk -F: -v u="$u" '$1==u{print $6}' /etc/passwd)
-[ -n "$h" ] || { echo "Benutzer $u existiert im Container nicht" >&2; exit 3; }
+[ -n "$h" ] || { echo "user $u does not exist in the container" >&2; exit 3; }
 mkdir -p "$h/.ssh" && chmod 700 "$h/.ssh" && touch "$h/.ssh/authorized_keys" && chmod 600 "$h/.ssh/authorized_keys" || exit 4
 grep -qxF "$k" "$h/.ssh/authorized_keys" || printf '%s\n' "$k" >> "$h/.ssh/authorized_keys"
 chown -R "$u" "$h/.ssh"
-command -v sshd >/dev/null 2>&1 || [ -x /usr/sbin/sshd ] || echo "Hinweis: kein sshd im Container installiert" >&2`
+command -v sshd >/dev/null 2>&1 || [ -x /usr/sbin/sshd ] || echo "note: no sshd installed in the container" >&2`
 	script := fmt.Sprintf("pct exec %d -- sh -c %s sh %s %s\n", id, shq(inner), shq(user), shq(pubkey))
 	_, err := s.Run(script)
 	return err

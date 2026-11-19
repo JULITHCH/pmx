@@ -10,7 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Server ist ein Proxmox-Host aus der Config.
+// Server is a Proxmox host from the config.
 type Server struct {
 	Name          string `toml:"name"`
 	Host          string `toml:"host"`
@@ -36,18 +36,18 @@ type Config struct {
 	Servers  []Server `toml:"server"`
 }
 
-const exampleConfig = `# pmx – Schnellzugriff auf Proxmox LXC Container
+const exampleConfig = `# pmx – fast access to Proxmox LXC containers
 #
-# Jeder [[server]] ist ein Proxmox-Node. Bei einem Cluster jeden Node
-# einzeln eintragen (pct enter funktioniert nur auf dem Node des Containers).
+# Each [[server]] is a Proxmox node. In a cluster, add every node separately
+# (pct enter only works on the node that hosts the container).
 
 [defaults]
-user = "root"                 # SSH-User auf dem Proxmox-Host
+user = "root"                 # SSH user on the Proxmox host
 # port = 22
 # identity_file = "~/.ssh/id_ed25519"
-container_user = "root"       # User für ctrl+s (SSH direkt in den Container)
-jump = true                   # SSH in Container über den Proxmox-Host tunneln
-# sudo = false                # Proxmox-Befehle mit sudo ausführen (wenn user != root)
+container_user = "root"       # user for ctrl+s (SSH directly into a container)
+jump = true                   # tunnel container SSH through the Proxmox host
+# sudo = false                # run Proxmox commands via sudo (if user != root)
 
 [[server]]
 name = "pve1"
@@ -74,7 +74,7 @@ func defaultConfigPath() string {
 
 func writeExampleConfig(path string) error {
 	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("%s existiert bereits", path)
+		return fmt.Errorf("%s already exists", path)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -98,10 +98,10 @@ func LoadConfig(path string) (*Config, error) {
 			s.Name = s.Host
 		}
 		if s.Host == "" {
-			return nil, fmt.Errorf("config: server %q hat keinen host", s.Name)
+			return nil, fmt.Errorf("config: server %q has no host", s.Name)
 		}
 		if seen[strings.ToLower(s.Name)] {
-			return nil, fmt.Errorf("config: server-name %q doppelt", s.Name)
+			return nil, fmt.Errorf("config: duplicate server name %q", s.Name)
 		}
 		seen[strings.ToLower(s.Name)] = true
 		s.User = first(s.User, d.User, "root")
@@ -127,7 +127,7 @@ func LoadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Find sucht einen Server per Name (exakt, dann eindeutiger Präfix).
+// Find looks up a server by name (exact match, then unique prefix).
 func (c *Config) Find(name string) (*Server, error) {
 	n := strings.ToLower(name)
 	var matches []*Server
@@ -144,13 +144,13 @@ func (c *Config) Find(name string) (*Server, error) {
 	case 1:
 		return matches[0], nil
 	case 0:
-		return nil, fmt.Errorf("kein Server %q in der Config", name)
+		return nil, fmt.Errorf("no server %q in the config", name)
 	}
 	var names []string
 	for _, s := range matches {
 		names = append(names, s.Name)
 	}
-	return nil, fmt.Errorf("%q ist mehrdeutig: %s", name, strings.Join(names, ", "))
+	return nil, fmt.Errorf("%q is ambiguous: %s", name, strings.Join(names, ", "))
 }
 
 func first(vals ...string) string {

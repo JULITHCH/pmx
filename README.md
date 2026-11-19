@@ -94,6 +94,29 @@ pmx list pve1 | grep running
 
 You can abbreviate server names as long as they stay unique (`pmx pv 101`).
 
+### Scripting / automation
+
+These commands need no TTY and never prompt. They work in scripts, cron jobs and for AI agents:
+
+```sh
+pmx servers [--json]                       # configured servers
+pmx list [server...] --json                # containers as JSON
+pmx exec pve1 web 'df -h /'                # run a command via pct exec
+pmx exec pve1 101 systemctl status nginx   # everything after <ct> is the command
+echo "hello" | pmx exec pve1 web 'cat > /tmp/x'   # stdin is forwarded
+pmx start|shutdown|stop|reboot pve1 web
+```
+
+`pmx exec` passes the command's exit code through (255 means an SSH error).
+
+### Claude Code skill
+
+[`skills/pmx/SKILL.md`](skills/pmx/SKILL.md) teaches Claude Code to use pmx. Install it with:
+
+```sh
+mkdir -p ~/.claude/skills && cp -r skills/pmx ~/.claude/skills/
+```
+
 ## Why is it fast?
 
 - pmx fetches the container list in **one** SSH call. It reads status and

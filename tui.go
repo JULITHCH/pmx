@@ -37,26 +37,26 @@ var (
 	stYellow = lipgloss.NewStyle().Foreground(cYellow).Bold(true)
 )
 
-// ---------- Tasten ----------
+// ---------- Keys ----------
 
 var keys = struct {
 	Open, Enter, HostSSH, CtSSH, Back, Ping, Refresh, Start, Stop, Reboot, Copy, Host, Running, Edit, Quit key.Binding
 }{
-	Open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "Container")),
+	Open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "containers")),
 	Enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "pct enter")),
-	HostSSH: key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "ssh Host")),
+	HostSSH: key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "ssh host")),
 	CtSSH:   key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "ssh")),
-	Back:    key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc", "zurück")),
-	Ping:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "Status")),
-	Refresh: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "neu laden")),
-	Start:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "starten")),
-	Stop:    key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "herunterfahren")),
-	Reboot:  key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "neustarten")),
-	Copy:    key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "IP kopieren")),
-	Host:    key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "Host-Shell")),
-	Running: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "nur laufende")),
-	Edit:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "Config")),
-	Quit:    key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "beenden")),
+	Back:    key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc", "back")),
+	Ping:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "status")),
+	Refresh: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reload")),
+	Start:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start")),
+	Stop:    key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "shutdown")),
+	Reboot:  key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reboot")),
+	Copy:    key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy IP")),
+	Host:    key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "host shell")),
+	Running: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "running only")),
+	Edit:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit config")),
+	Quit:    key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 }
 
 // ---------- Items & Delegates ----------
@@ -157,7 +157,7 @@ func (d *ctDelegate) Render(w io.Writer, m list.Model, index int, item list.Item
 	fmt.Fprint(w, ansi.Truncate(cursor+dot+" "+line, m.Width(), "…"))
 }
 
-// pad schneidet ab bzw. füllt rechts mit Leerzeichen auf.
+// pad truncates or right-pads with spaces.
 func pad(s string, w int) string {
 	sw := ansi.StringWidth(s)
 	if sw > w {
@@ -234,7 +234,7 @@ func newList(d list.ItemDelegate, title, item string, short, full []key.Binding)
 	l := list.New(nil, d, 0, 0)
 	l.Title = title
 	l.Styles.Title = stTitle
-	l.SetStatusBarItemName(item, item)
+	l.SetStatusBarItemName(item, item+"s")
 	l.KeyMap.Quit.SetEnabled(false)
 	l.KeyMap.ForceQuit.SetEnabled(false)
 	l.FilterInput.Prompt = "Filter: "
@@ -245,10 +245,10 @@ func newList(d list.ItemDelegate, title, item string, short, full []key.Binding)
 
 func newModel(cfgPath string, cfg *Config, start *Server) *model {
 	m := &model{cfgPath: cfgPath, cfg: cfg, srvDel: &srvDelegate{}, ctDel: &ctDelegate{}}
-	m.srvList = newList(m.srvDel, "pmx · Proxmox Server", "Server",
+	m.srvList = newList(m.srvDel, "pmx · Proxmox servers", "server",
 		[]key.Binding{keys.Open, keys.HostSSH},
 		[]key.Binding{keys.Open, keys.HostSSH, keys.Ping, keys.Edit})
-	m.ctList = newList(m.ctDel, "Container", "Container",
+	m.ctList = newList(m.ctDel, "Containers", "container",
 		[]key.Binding{keys.Enter, keys.CtSSH, keys.Back},
 		[]key.Binding{keys.Enter, keys.CtSSH, keys.Host, keys.Start, keys.Stop, keys.Reboot,
 			keys.Copy, keys.Running, keys.Refresh, keys.Back})
@@ -291,7 +291,7 @@ func (m *model) pingAll() tea.Cmd {
 			if err != nil {
 				var dnsErr *net.DNSError
 				if errors.As(err, &dnsErr) {
-					return pingMsg{name: s.Name, state: pingUnknown} // evtl. ssh-config-Alias
+					return pingMsg{name: s.Name, state: pingUnknown} // possibly an ssh config alias
 				}
 				return pingMsg{name: s.Name, state: pingOffline}
 			}
@@ -405,7 +405,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !errors.As(msg.err, &ee) {
 				m.setErr(msg.err)
 			} else if ee.ExitCode() == 255 {
-				m.setMsg("Verbindung fehlgeschlagen (Exit 255)", true)
+				m.setMsg("connection failed (exit 255)", true)
 			}
 		}
 		if m.view == vContainers && m.cur != nil {
@@ -421,7 +421,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.cfg, m.cur, m.view = cfg, nil, vServers
 		m.setServerItems()
-		m.setMsg("Config neu geladen", false)
+		m.setMsg("config reloaded", false)
 		return m, m.pingAll()
 
 	case tea.KeyMsg:
@@ -435,7 +435,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "y", "Y", "j", "J":
 				return m, a.yes()
 			}
-			m.setMsg("abgebrochen", false)
+			m.setMsg("cancelled", false)
 			return m, nil
 		}
 		if m.activeList().FilterState() != list.Filtering {
@@ -502,7 +502,7 @@ func (m *model) serverKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
 func (m *model) containerKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if key.Matches(msg, keys.Back) && m.ctList.FilterState() == list.Unfiltered {
 		m.view = vServers
-		m.loadSeq++ // laufende Ladevorgänge verwerfen
+		m.loadSeq++ // discard in-flight loads
 		m.busy = ""
 		return nil, true
 	}
@@ -529,34 +529,34 @@ func (m *model) containerKeys(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return m.sshCt(c), true
 	case key.Matches(msg, keys.Start):
 		if c.Running() {
-			m.setMsg(fmt.Sprintf("CT %d läuft bereits", c.ID), false)
+			m.setMsg(fmt.Sprintf("CT %d is already running", c.ID), false)
 			return nil, true
 		}
 		return m.power(c, "start"), true
 	case key.Matches(msg, keys.Stop):
 		if !c.Running() {
-			m.setMsg(fmt.Sprintf("CT %d läuft nicht", c.ID), false)
+			m.setMsg(fmt.Sprintf("CT %d is not running", c.ID), false)
 			return nil, true
 		}
-		m.askf(func() tea.Cmd { return m.power(c, "shutdown") }, "CT %d (%s) herunterfahren?", c.ID, c.Name)
+		m.askf(func() tea.Cmd { return m.power(c, "shutdown") }, "Shut down CT %d (%s)?", c.ID, c.Name)
 		return nil, true
 	case key.Matches(msg, keys.Reboot):
 		if !c.Running() {
-			m.setMsg(fmt.Sprintf("CT %d läuft nicht", c.ID), false)
+			m.setMsg(fmt.Sprintf("CT %d is not running", c.ID), false)
 			return nil, true
 		}
-		m.askf(func() tea.Cmd { return m.power(c, "reboot") }, "CT %d (%s) neu starten?", c.ID, c.Name)
+		m.askf(func() tea.Cmd { return m.power(c, "reboot") }, "Reboot CT %d (%s)?", c.ID, c.Name)
 		return nil, true
 	case key.Matches(msg, keys.Copy):
 		ip := c.PrimaryIP()
 		if ip == "" {
-			m.setMsg("keine IP bekannt", true)
+			m.setMsg("no known IP", true)
 			return nil, true
 		}
 		if err := copyToClipboard(ip); err != nil {
 			m.setErr(err)
 		} else {
-			m.setMsg(ip+" kopiert", false)
+			m.setMsg(ip+" copied", false)
 		}
 		return nil, true
 	}
@@ -580,7 +580,7 @@ func (m *model) openServer(s *Server) tea.Cmd {
 func (m *model) reload() tea.Cmd {
 	m.loadSeq++
 	seq, s := m.loadSeq, m.cur
-	return m.startBusy("lade Container von "+s.Name+" …", func() tea.Msg {
+	return m.startBusy("loading containers from "+s.Name+" …", func() tea.Msg {
 		node, cts, err := s.ListContainers()
 		return ctsMsg{seq: seq, srv: s, node: node, cts: cts, err: err}
 	})
@@ -601,10 +601,10 @@ func (m *model) updateCtTitle() {
 				run++
 			}
 		}
-		t += fmt.Sprintf(" · %d/%d laufend", run, len(m.all))
+		t += fmt.Sprintf(" · %d/%d running", run, len(m.all))
 	}
 	if m.onlyRunning {
-		t += " · nur laufende"
+		t += " · running only"
 	}
 	m.ctList.Title = t
 }
@@ -642,35 +642,35 @@ func (m *model) applyContainers() tea.Cmd {
 func (m *model) enterCt(c Container) tea.Cmd {
 	s := m.cur
 	enter := func() tea.Cmd {
-		return execShell(s.EnterCmd(c.ID), fmt.Sprintf("pct enter %d (%s) auf %s", c.ID, c.Name, s.Name))
+		return execShell(s.EnterCmd(c.ID), fmt.Sprintf("pct enter %d (%s) on %s", c.ID, c.Name, s.Name))
 	}
 	if c.Running() {
 		return enter()
 	}
 	m.askf(func() tea.Cmd {
-		return m.startBusy(fmt.Sprintf("starte CT %d …", c.ID), func() tea.Msg {
+		return m.startBusy(fmt.Sprintf("starting CT %d …", c.ID), func() tea.Msg {
 			return actionMsg{err: s.Pct("start", c.ID), next: enter}
 		})
-	}, "CT %d (%s) ist gestoppt – starten und betreten?", c.ID, c.Name)
+	}, "CT %d (%s) is stopped – start and enter it?", c.ID, c.Name)
 	return nil
 }
 
 func (m *model) sshCt(c Container) tea.Cmd {
 	s := m.cur
 	if !c.Running() {
-		m.setMsg(fmt.Sprintf("CT %d läuft nicht – mit s starten", c.ID), true)
+		m.setMsg(fmt.Sprintf("CT %d is not running – press s to start it", c.ID), true)
 		return nil
 	}
 	ip := c.PrimaryIP()
 	if ip == "" {
-		m.setMsg(fmt.Sprintf("keine IP für CT %d bekannt – enter nutzt pct enter", c.ID), true)
+		m.setMsg(fmt.Sprintf("no known IP for CT %d – use enter for pct enter", c.ID), true)
 		return nil
 	}
 	target := s.ContainerUser + "@" + ip
 	open := func() tea.Cmd {
 		return execShell(s.ContainerShellCmd(ip), fmt.Sprintf("ssh %s (CT %d %s)", target, c.ID, c.Name))
 	}
-	return m.startBusy("prüfe SSH-Zugang "+target+" …", func() tea.Msg {
+	return m.startBusy("checking SSH access to "+target+" …", func() tea.Msg {
 		return checkMsg{
 			err:    s.CheckContainerSSH(ip),
 			onOK:   open,
@@ -681,7 +681,7 @@ func (m *model) sshCt(c Container) tea.Cmd {
 
 func (m *model) hostShell(s *Server) tea.Cmd {
 	open := func() tea.Cmd { return execShell(s.HostShellCmd(), "ssh "+s.Target()) }
-	return m.startBusy("prüfe SSH-Zugang "+s.Target()+" …", func() tea.Msg {
+	return m.startBusy("checking SSH access to "+s.Target()+" …", func() tea.Msg {
 		return checkMsg{
 			err:    s.CheckHost(),
 			onOK:   open,
@@ -693,9 +693,9 @@ func (m *model) hostShell(s *Server) tea.Cmd {
 func (m *model) power(c Container, action string) tea.Cmd {
 	s := m.cur
 	labels := map[string][2]string{
-		"start":    {"starte", "gestartet"},
-		"shutdown": {"fahre herunter:", "heruntergefahren"},
-		"reboot":   {"starte neu:", "neu gestartet"},
+		"start":    {"starting", "started"},
+		"shutdown": {"shutting down", "shut down"},
+		"reboot":   {"rebooting", "rebooted"},
 	}[action]
 	return m.startBusy(fmt.Sprintf("%s CT %d (%s) …", labels[0], c.ID, c.Name), func() tea.Msg {
 		return actionMsg{text: fmt.Sprintf("CT %d %s", c.ID, labels[1]), err: s.Pct(action, c.ID), next: m.reload}
@@ -704,14 +704,14 @@ func (m *model) power(c Container, action string) tea.Cmd {
 
 func (m *model) offerKeygen(pub string, after func() tea.Cmd) tea.Cmd {
 	m.askf(func() tea.Cmd {
-		return tea.Exec(&bannerExec{cmd: KeygenCmd(pub), banner: "neuen SSH-Key erzeugen", pauseAny: true},
+		return tea.Exec(&bannerExec{cmd: KeygenCmd(pub), banner: "generate new SSH key", pauseAny: true},
 			func(err error) tea.Msg {
 				if err != nil {
 					return actionMsg{err: fmt.Errorf("ssh-keygen: %w", err)}
 				}
 				return contMsg{after}
 			})
-	}, "Kein lokaler SSH-Key gefunden – neuen Key %s erzeugen?", tildify(pub))
+	}, "No local SSH key found – generate a new key at %s?", tildify(pub))
 	return nil
 }
 
@@ -724,11 +724,11 @@ func (m *model) offerHostKey(s *Server, after func() tea.Cmd) tea.Cmd {
 		return tea.Exec(&bannerExec{cmd: s.CopyIDCmd(pub), banner: "ssh-copy-id → " + s.Target(), pauseAny: true},
 			func(err error) tea.Msg {
 				if err != nil {
-					return actionMsg{err: fmt.Errorf("ssh-copy-id fehlgeschlagen: %w", err)}
+					return actionMsg{err: fmt.Errorf("ssh-copy-id failed: %w", err)}
 				}
 				return contMsg{after}
 			})
-	}, "Kein SSH-Key auf %s hinterlegt – jetzt mit ssh-copy-id hinterlegen?", s.Target())
+	}, "Your SSH key is not installed on %s – install it now with ssh-copy-id?", s.Target())
 	return nil
 }
 
@@ -738,14 +738,14 @@ func (m *model) offerCtKey(s *Server, c Container, target string, after func() t
 		return m.offerKeygen(pub, func() tea.Cmd { return m.offerCtKey(s, c, target, after) })
 	}
 	m.askf(func() tea.Cmd {
-		return m.startBusy(fmt.Sprintf("hinterlege Key in CT %d …", c.ID), func() tea.Msg {
+		return m.startBusy(fmt.Sprintf("installing key in CT %d …", c.ID), func() tea.Msg {
 			data, err := os.ReadFile(pub)
 			if err == nil {
 				err = s.PushContainerKey(c.ID, s.ContainerUser, strings.TrimSpace(string(data)))
 			}
-			return actionMsg{text: "SSH-Key hinterlegt", err: err, next: after}
+			return actionMsg{text: "SSH key installed", err: err, next: after}
 		})
-	}, "Kein SSH-Key für %s (CT %d) hinterlegt – jetzt per pct hinterlegen?", target, c.ID)
+	}, "Your SSH key is not installed for %s (CT %d) – install it now via pct?", target, c.ID)
 	return nil
 }
 
@@ -775,10 +775,10 @@ func (m *model) statusLine() string {
 	return ""
 }
 
-// ---------- Exec-Hilfen ----------
+// ---------- Exec helpers ----------
 
-// bannerExec zeigt vor dem Start eine Info-Zeile und pausiert bei Fehlern,
-// damit Fehlermeldungen nicht sofort von der TUI überschrieben werden.
+// bannerExec prints an info line before starting and pauses on errors so
+// error messages aren't immediately overwritten by the TUI.
 type bannerExec struct {
 	cmd      *exec.Cmd
 	banner   string
@@ -794,12 +794,12 @@ func (b *bannerExec) Run() error {
 		out = os.Stdout
 	}
 	if b.banner != "" {
-		fmt.Fprintf(out, "\033[2m── pmx: %s  (exit / ctrl+d → zurück zu pmx)\033[0m\n", b.banner)
+		fmt.Fprintf(out, "\033[2m── pmx: %s  (exit / ctrl+d → back to pmx)\033[0m\n", b.banner)
 	}
 	err := b.cmd.Run()
 	var ee *exec.ExitError
 	if err != nil && (b.pauseAny || !errors.As(err, &ee) || ee.ExitCode() == 255) {
-		fmt.Fprintf(out, "\n\033[31m── pmx: %v – Enter drücken …\033[0m", err)
+		fmt.Fprintf(out, "\n\033[31m── pmx: %v – press Enter …\033[0m", err)
 		in := b.cmd.Stdin
 		if in == nil {
 			in = os.Stdin
@@ -837,7 +837,7 @@ func copyToClipboard(s string) error {
 	if try("pbcopy") {
 		return nil
 	}
-	// Fallback: OSC 52 – funktioniert in den meisten Terminals, auch über SSH.
+	// Fallback: OSC 52 – works in most terminals, even over SSH.
 	_, err := fmt.Fprintf(os.Stdout, "\033]52;c;%s\a", base64.StdEncoding.EncodeToString([]byte(s)))
 	return err
 }

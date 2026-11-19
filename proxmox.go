@@ -19,7 +19,7 @@ type Container struct {
 
 func (c Container) Running() bool { return c.Status == "RUNNING" }
 
-// PrimaryIP bevorzugt IPv4.
+// PrimaryIP prefers IPv4.
 func (c Container) PrimaryIP() string {
 	for _, ip := range c.IPs {
 		if !strings.Contains(ip, ":") {
@@ -32,11 +32,11 @@ func (c Container) PrimaryIP() string {
 	return ""
 }
 
-// listScript sammelt alles in einem einzigen SSH-Roundtrip. Status und IPs
-// kommen direkt von lxc-info (deutlich schneller als pct status / pct exec).
-// Für gestoppte Container werden statische IPs aus der Config angezeigt.
+// listScript collects everything in a single SSH round trip. Status and IPs
+// come straight from lxc-info (much faster than pct status / pct exec).
+// For stopped containers, static IPs from the config are shown.
 const listScript = `d="${PMX_PVE_DIR:-/etc/pve}"
-[ -d "$d" ] || { echo "$d nicht gefunden – ist das ein Proxmox-Host?" >&2; exit 2; }
+[ -d "$d" ] || { echo "$d not found – is this a Proxmox host?" >&2; exit 2; }
 printf '#node\t%s\n' "$(hostname)"
 for f in "$d"/lxc/*.conf; do
   [ -e "$f" ] || continue
@@ -99,13 +99,13 @@ func splitAny(s, seps string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool { return strings.ContainsRune(seps, r) })
 }
 
-// Pct führt start/shutdown/reboot usw. aus.
+// Pct runs start/shutdown/reboot etc.
 func (s *Server) Pct(action string, id int) error {
 	_, err := s.Run(fmt.Sprintf("pct %s %d\n", action, id))
 	return err
 }
 
-// FindContainer: per ID, exaktem Namen oder eindeutigem Teilstring.
+// FindContainer matches by ID, exact name or unique substring.
 func FindContainer(cts []Container, ref string) (Container, error) {
 	if id, err := strconv.Atoi(ref); err == nil {
 		for _, c := range cts {
@@ -113,7 +113,7 @@ func FindContainer(cts []Container, ref string) (Container, error) {
 				return c, nil
 			}
 		}
-		return Container{}, fmt.Errorf("kein Container mit ID %d", id)
+		return Container{}, fmt.Errorf("no container with ID %d", id)
 	}
 	r := strings.ToLower(ref)
 	var m []Container
@@ -130,11 +130,11 @@ func FindContainer(cts []Container, ref string) (Container, error) {
 	case 1:
 		return m[0], nil
 	case 0:
-		return Container{}, fmt.Errorf("kein Container %q gefunden", ref)
+		return Container{}, fmt.Errorf("no container %q found", ref)
 	}
 	var names []string
 	for _, c := range m {
 		names = append(names, fmt.Sprintf("%d:%s", c.ID, c.Name))
 	}
-	return Container{}, fmt.Errorf("%q ist mehrdeutig: %s", ref, strings.Join(names, ", "))
+	return Container{}, fmt.Errorf("%q is ambiguous: %s", ref, strings.Join(names, ", "))
 }
