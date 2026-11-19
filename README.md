@@ -1,27 +1,27 @@
-# pmx – Schnellzugriff auf Proxmox LXC Container
+# pmx – fast access to Proxmox LXC containers
 
 ```
-pmx  →  Server wählen  →  Container wählen  →  du bist drin (pct enter)
-                                exit  →  zurück zur Container-Auswahl
+pmx  →  pick a server  →  pick a container  →  you're in (pct enter)
+                                 exit  →  back to the container list
 ```
 
 ## Installation
 
 ```sh
 go install github.com/JULITHCH/pmx@latest
-# oder aus dem Repo:
-make install          # baut und kopiert nach ~/.local/bin/pmx
-pmx init              # legt ~/.config/pmx/config.toml an
-pmx edit              # Server eintragen
+# or from a checkout:
+make install          # builds and copies to ~/.local/bin/pmx
+pmx init              # creates ~/.config/pmx/config.toml
+pmx edit              # add your servers
 ```
 
 ## Config (`~/.config/pmx/config.toml`)
 
 ```toml
 [defaults]
-user = "root"            # SSH-User auf dem Proxmox-Host
-container_user = "root"  # User für SSH direkt in den Container (ctrl+s)
-jump = true              # Container-SSH über den Proxmox-Host tunneln
+user = "root"            # SSH user on the Proxmox host
+container_user = "root"  # user for SSH directly into a container (ctrl+s)
+jump = true              # tunnel container SSH through the Proxmox host
 # identity_file = "~/.ssh/id_ed25519"
 # sudo = false
 
@@ -33,85 +33,85 @@ host = "192.168.1.10"
 name = "pve2"
 host = "pve2.lan"
 user = "admin"
-sudo = true              # braucht NOPASSWD-sudo für pct/lxc-info
+sudo = true              # requires passwordless sudo for pct/lxc-info
 port = 2222
 ```
 
-Alle Werte aus `[defaults]` können pro Server überschrieben werden.
-Bei einem Cluster jeden Node als eigenen `[[server]]` eintragen – `pct enter`
-funktioniert nur auf dem Node, auf dem der Container liegt.
+You can override any value from `[defaults]` per server.
+In a cluster, add each node as its own `[[server]]`. `pct enter` only works
+on the node that hosts the container.
 
-## Bedienung
+## Usage
 
-**Serverliste**
+**Server list**
 
-| Taste    | Aktion                                   |
-|----------|------------------------------------------|
-| `enter`  | Container des Servers anzeigen           |
-| `ctrl+s` | SSH-Session auf dem Proxmox-Host         |
-| `r`      | Erreichbarkeit neu prüfen                |
-| `e`      | Config im `$EDITOR` öffnen (lädt danach neu) |
-| `/`      | Filtern                                  |
-| `q`      | Beenden                                  |
+| Key      | Action                                       |
+|----------|----------------------------------------------|
+| `enter`  | Show the server's containers                 |
+| `ctrl+s` | SSH session on the Proxmox host              |
+| `r`      | Re-check reachability                        |
+| `e`      | Open the config in `$EDITOR` (reloaded after)|
+| `/`      | Filter                                       |
+| `q`      | Quit                                         |
 
-**Containerliste** (ID, Name, IP, vCPU, RAM, Tags; gestoppte grau)
+**Container list** (ID, name, IP, vCPU, RAM, tags; stopped containers are dimmed)
 
-| Taste       | Aktion                                                 |
-|-------------|--------------------------------------------------------|
-| `enter`     | `pct enter` – gestoppte Container werden auf Wunsch gestartet |
-| `ctrl+s`    | SSH direkt in den Container (über die IP)              |
-| `H`         | Shell auf dem Proxmox-Host                             |
-| `s` / `x` / `R` | Start / Shutdown / Reboot (mit Rückfrage)          |
-| `c`         | IP in die Zwischenablage kopieren                      |
-| `a`         | nur laufende Container zeigen                          |
-| `r`         | neu laden                                              |
-| `/`         | Filtern (ID, Name, IP, Tags)                           |
-| `esc`       | zurück zur Serverliste                                 |
-| `?`         | alle Tasten anzeigen                                   |
-| `q`         | Beenden                                                |
+| Key             | Action                                                   |
+|-----------------|----------------------------------------------------------|
+| `enter`         | `pct enter`. If the container is stopped, pmx offers to start it |
+| `ctrl+s`        | SSH directly into the container (via its IP)             |
+| `H`             | Shell on the Proxmox host                                |
+| `s` / `x` / `R` | Start / shutdown / reboot (with confirmation)            |
+| `c`             | Copy IP to clipboard                                     |
+| `a`             | Show running containers only                             |
+| `r`             | Reload                                                   |
+| `/`             | Filter (ID, name, IP, tags)                              |
+| `esc`           | Back to the server list                                  |
+| `?`             | Show all keys                                            |
+| `q`             | Quit                                                     |
 
-Nach `exit` aus `pct enter` oder SSH landest du wieder in der Container-Auswahl.
+When you `exit` from `pct enter` or SSH, you're back in the container list.
 
-## SSH-Keys
+## SSH keys
 
-- **Proxmox-Host:** Akzeptiert der Host deinen Key nicht, fragt pmx, ob er per
-  `ssh-copy-id` hinterlegt werden soll (einmalig das Passwort eingeben).
-- **Container (`ctrl+s`):** Fehlt der Key im Container, fragt pmx, ob er
-  hinterlegt werden soll. Das geht über `pct exec` auf dem Host und braucht
-  **kein Container-Passwort**. Im Container muss ein sshd laufen.
-- Gibt es lokal noch gar keinen Key, bietet pmx an, einen neuen ed25519-Key zu erzeugen.
+- **Proxmox host:** if the host doesn't accept your key, pmx offers to install
+  it with `ssh-copy-id`. You enter the password once.
+- **Container (`ctrl+s`):** if your key is missing in the container, pmx offers
+  to install it. It does this with `pct exec` on the host, so **you don't need
+  the container's password**. The container must run an sshd.
+- If you have no local key at all, pmx offers to generate a new ed25519 key.
 
-## Ohne TUI
+## Without the TUI
 
 ```sh
-pmx pve1                 # direkt zur Container-Liste von pve1
-pmx pve1 101             # direkt pct enter in CT 101
-pmx pve1 web             # Container per Name (oder eindeutigem Teil davon)
-pmx -s pve1 web          # per SSH statt pct enter
-pmx list                 # Tabelle aller Container aller Server (parallel)
+pmx pve1                 # go straight to pve1's container list
+pmx pve1 101             # pct enter into CT 101 right away
+pmx pve1 web             # pick a container by name (or a unique part of it)
+pmx -s pve1 web          # use SSH instead of pct enter
+pmx list                 # table of all containers on all servers (queried in parallel)
 pmx list pve1 | grep running
 ```
 
-Server-Namen dürfen abgekürzt werden, solange sie eindeutig sind (`pmx pv 101`).
+You can abbreviate server names as long as they stay unique (`pmx pv 101`).
 
-## Warum ist das schnell?
+## Why is it fast?
 
-- Die Container-Liste kommt in **einem** SSH-Aufruf. Status und IPs liest pmx per
-  `lxc-info` statt per `pct status` / `pct exec`.
-- pmx verwendet die SSH-Verbindung zum Host weiter (`ControlMaster`, 10 min).
-  Ab dem zweiten Aufruf entfällt der Verbindungsaufbau, das gilt auch für den
-  Tunnel bei `ctrl+s`.
-- `pmx <server> <id>` geht ohne Umweg direkt in den Container.
+- pmx fetches the container list in **one** SSH call. It reads status and
+  IPs with `lxc-info` instead of `pct status` / `pct exec`.
+- pmx reuses the SSH connection to the host (`ControlMaster`, 10 min).
+  From the second call on there's no connection setup. This also applies to
+  the `ctrl+s` tunnel.
+- `pmx <server> <id>` goes straight into the container.
 
-## Voraussetzungen
+## Requirements
 
-Go ≥ 1.24 zum Bauen, lokal `ssh` (OpenSSH) und für Key-Setup `ssh-copy-id` / `ssh-keygen`.
-Auf den Proxmox-Hosts genügen die Standardwerkzeuge (`pct`, `lxc-info`).
+To build: Go ≥ 1.24. Locally: `ssh` (OpenSSH), plus `ssh-copy-id` / `ssh-keygen`
+for key setup. On the Proxmox hosts the standard tools (`pct`, `lxc-info`) are enough.
 
-## Hinweise
+## Notes
 
-- Unbekannte Host-Keys werden beim ersten Kontakt automatisch akzeptiert
-  (`StrictHostKeyChecking=accept-new`), geänderte Host-Keys weiterhin abgelehnt.
-- Bei gestoppten Containern werden statische IPs aus der Container-Config angezeigt.
-- Mit `sudo = true` muss der User `pct`, `lxc-info` und `sh` ohne Passwort per sudo
-  ausführen dürfen (z. B. `admin ALL=(root) NOPASSWD: ALL`).
+- pmx accepts unknown host keys automatically on first contact
+  (`StrictHostKeyChecking=accept-new`). It still rejects changed host keys.
+- For stopped containers, pmx shows the static IPs from the container config.
+- With `sudo = true`, the user must be allowed to run `pct`, `lxc-info` and `sh`
+  through sudo without a password (e.g. `admin ALL=(root) NOPASSWD: ALL`).
